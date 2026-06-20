@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <title>Wireless ADB Folder Pull</title>
+        <style>:root
+        {
+            color-scheme: light;
+            --bg: #f4f7fb;
+            --bg2: #e7edf7;
+            --card: rgba(255, 255, 255, 0.84);
+            --field: #eef2f7;
+            --input: #ffffff;
+            --line: rgba(31, 41, 55, 0.12);
+            --text: #0f172a;
+            --muted: #516074;
+            --accent: #2563eb;
+            --accent2: #0ea5e9;
+            --warn: #b45309;
+            --danger: #b91c1c;
+            --shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+            --radius: 22px;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --bg: #08111f;
+            --bg2: #0f1b31;
+            --card: rgba(12, 22, 40, 0.86);
+            --field: rgba(5, 11, 20, 0.7);
+            --input: rgba(5, 11, 20, 0.7);
+            --line: rgba(168, 196, 255, 0.16);
+            --text: #ecf3ff;
+            --muted: #aab9d4;
+            --accent: #66d9ff;
+            --accent2: #8bffcc;
+            --warn: #ffd166;
+            --danger: #ff7c8c;
+            --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            background: radial-gradient(circle at top left, rgba(102, 217, 255, 0.16), transparent 26%), radial-gradient(circle at 80% 20%, rgba(139, 255, 204, 0.12), transparent 22%), linear-gradient(180deg, var(--bg), var(--bg2));
+            color: var(--text);
+        }
+
+        body {
+            padding: 32px 18px 40px;
+        }
+
+        .wrap {
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 1.7fr 1fr;
+            align-items: end;
+            margin-bottom: 22px;
+        }
+
+        .hero-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--muted);
+            font-size: 13px;
+            width: fit-content;
+        }
+
+        h1 {
+            margin: 14px 0 10px;
+            font-size: clamp(2rem, 5vw, 4.25rem);
+            line-height: 0.97;
+            letter-spacing: -0.05em;
+            max-width: 12ch;
+        }
+
+        .lede {
+            margin: 0;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.6;
+            max-width: 64ch;
+        }
+
+        .status {
+            border: 1px solid var(--line);
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .status strong {
+            display: block;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+
+        .status p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.55;
+            font-size: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 0.95fr 1.05fr;
+            gap: 18px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+        }
+
+        .card h2 {
+            margin: 0 0 14px;
+            font-size: 18px;
+            letter-spacing: -0.02em;
+        }
+
+        .subtle {
+            color: var(--muted);
+            margin: -6px 0 14px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .fields {
+            display: grid;
+            gap: 12px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .field-row input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .field-row .copy-field-btn {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .field label {
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            border: 1px solid rgba(168, 196, 255, 0.18);
+            background: var(--input);
+            color: var(--text);
+            border-radius: 14px;
+            padding: 12px 14px;
+            font: inherit;
+            outline: none;
+            transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: rgba(102, 217, 255, 0.75);
+            box-shadow: 0 0 0 4px rgba(102, 217, 255, 0.12);
+        }
+
+        textarea {
+            min-height: 170px;
+            resize: vertical;
+            line-height: 1.55;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 13px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 12px 16px;
+            font: inherit;
+            font-weight: 650;
+            color: #03111e;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+
+        button.secondary {
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: 1px solid rgba(37, 99, 235, 0.28);
+            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.16);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button:hover {
+            filter: brightness(1.05);
+        }
+
+        .stack {
+            display: grid;
+            gap: 14px;
+            align-content: start;
+            align-items: start;
+        }
+
+        .commands {
+            display: grid;
+            gap: 10px;
+        }
+
+        .cmd {
+            border: 1px solid rgba(168, 196, 255, 0.14);
+            background: var(--field);
+            border-radius: 16px;
+            padding: 12px 14px;
+        }
+
+        .cmd .label {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .cmd code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        .mini {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        .mini button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .notes {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.65;
+            font-size: 13px;
+        }
+
+        .notes li + li {
+            margin-top: 8px;
+        }
+
+        .steps {
+            display: grid;
+            gap: 12px;
+        }
+
+        .step-card {
+            border: 1px solid rgba(168, 196, 255, 0.14);
+            background: var(--field);
+            border-radius: 18px;
+            padding: 14px;
+        }
+
+        .step-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+
+        .step-kicker {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-size: 11px;
+        }
+
+        .step-title {
+            margin: 0;
+            font-size: 16px;
+            letter-spacing: -0.02em;
+        }
+
+        .step-desc {
+            margin: 0 0 12px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .step-card code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 13px;
+            line-height: 1.55;
+            color: var(--text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        .step-inline {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 12px;
+            flex-wrap: nowrap;
+        }
+
+        .step-inline code {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .step-inline .secondary {
+            flex: 0 0 auto;
+            padding: 8px 14px;
+            font-size: 12px;
+            min-width: 108px;
+            align-self: flex-start;
+            margin-top: 2px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .pill b {
+            color: var(--text);
+        }
+
+        .footer {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 8px 10px;
+            background: var(--field);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        }
+
+        .theme-toggle span {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .theme-toggle button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        :root[data-theme="dark"] .theme-toggle {
+            background: rgba(8, 14, 27, 0.72);
+        }
+
+        @media(max-width: 960px) {
+            .hero,
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="wrap">
+        <section class="hero">
+            <div>
+                <div class="hero-top">
+                    <div class="eyebrow">Wireless ADB folder pull helper</div>
+                    <div class="theme-toggle">
+                        <span>Theme</span>
+                        <button class="secondary" id="themeToggle" type="button">Dark</button>
+                    </div>
+                </div>
+                <h1>Netflix offline.</h1>
+                <p class="lede">
+                    Local download favorite show in Netflix & follow steps.
+                </p>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card stack">
+                <div>
+                    <h2>Connect to Android Wirelessly</h2>
+                    <p class="subtle">Enable USB debugging and follow commnads</p>
+                </div>
+
+                <div class="steps">
+                    <section class="step-card">
+                        <div class="step-head">
+                            <div>
+                                <div class="step-kicker">Step 1</div>
+                                <h3 class="step-title">Pair host and code</h3>
+                            </div>
+                        </div>
+                        <div class="fields">
+                            <div class="field">
+                                <label for="pairHost">Pair host:port</label>
+                                <div class="field-row">
+                                    <input id="pairHost" value="192.168.0.169:39013"/>
+                                    <button class="secondary copy-field-btn" id="copyPairHostBtn" type="button">Copy</button>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label for="pairCode">Pairing code</label>
+                                <div class="field-row">
+                                    <input id="pairCode" value="466269"/>
+                                    <button class="secondary copy-field-btn" id="copyPairCodeBtn" type="button">Copy</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="step-card">
+                        <div class="step-head">
+                            <div>
+                                <div class="step-kicker">Step 2</div>
+                                <h3 class="step-title">Find Netflix folder</h3>
+                            </div>
+                        </div>
+                        <p class="step-desc">Open ADB shell first.</p>
+                        <div class="step-inline">
+                            <code id="shellStepCmd"></code>
+                            <button class="secondary" data-copy="adb shell" type="button">Copy</button>
+                        </div>
+                        <div class="fields">
+                            <div class="field">
+                                <label for="ofPath">CD then Folder path</label>
+                                <input id="ofPath" value="/sdcard/android/data/com.netflix.mediaclient/files/download/.of/"/>
+                            </div>
+                            <div class="field">
+                                <label for="folderNumber">ls in terminal &amp; copy Folder number</label>
+                                <input id="folderNumber" value="81731620"/>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="step-card">
+                        <div class="step-head">
+                            <div>
+                                <div class="step-kicker">Step 3</div>
+                                <h3 class="step-title">Copy Project from Android to macOS</h3>
+                            </div>
+                        </div>
+                        <p class="step-desc">Pull the folder you found in Step 2 into the local destination folder.</p>
+                        <div class="cmd">
+                            <div class="label">Pull command</div>
+                            <code id="pullStepCmd">adb pull /sdcard/Android/data/com.netflix.mediaclient/files/download/.of/81731620 ~/Desktop/your_project</code>
+                            <div class="mini">
+                                <button class="secondary" data-copy="#pullStepCmd" type="button">Copy</button>
+                            </div>
+                        </div>
+                        <div class="fields">
+                            <div class="field">
+                                <label for="localPath">Local destination folder</label>
+                                <input id="localPath" value="~/Desktop/your_project"/>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+
+            <div class="card stack">
+                <div>
+                    <h2>Grab Audio from Netflix</h2>
+                    <p class="subtle">Convert Netflix Audio (nfa) to wav format</p>
+                </div>
+
+                <div class="steps">
+                    <section class="step-card">
+                        <div class="step-head">
+                            <div>
+                                <div class="step-kicker">Step 4</div>
+                                <h3 class="step-title">Convert nfa to wav file</h3>
+                            </div>
+                        </div>
+                        <p class="step-desc">Convert the audio nfa into a wav file.</p>
+                        <div class="fields">
+                            <div class="field">
+                                <label for="nfaFile">Audio nfa</label>
+                                <input id="nfaFile" value="177321463.nfa"/>
+                            </div>
+                            <div class="field">
+                                <label for="wavFile">WAV output</label>
+                                <input id="wavFile" value="language.wav"/>
+                            </div>
+                        </div>
+                        <div class="cmd">
+                            <div class="label">Convert command</div>
+                            <code id="convertStepCmd">afconvert -f 'WAVE' -d LEI16 177321463.nfa language.wav</code>
+                            <div class="mini">
+                                <button class="secondary" data-copy="#convertStepCmd" type="button">Copy</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="step-card">
+                        <div class="step-head">
+                            <div>
+                                <div class="step-kicker">Step 5</div>
+                                <h3 class="step-title">Merge audio to video</h3>
+                            </div>
+                        </div>
+                        <p class="step-desc">Netflix Video (nfv) are encrypted find your video somewhere else.</p>
+                        <div class="fields">
+                            <div class="field">
+                                <label for="movieFile">Video mp4</label>
+                                <input id="movieFile" value="movie.mp4"/>
+                            </div>
+                            <div class="field">
+                                <label for="outputFile">Synced output</label>
+                                <input id="outputFile" value="new_project.mkv"/>
+                            </div>
+                        </div>
+                        <div class="cmd">
+                            <div class="label">Merge command</div>
+                            <code id="mergeStepCmd">ffmpeg -i movie.mp4 -i audio.wav -map 0:v:0 -map 1:a:0 -c copy new_project.mkv</code>
+                            <div class="mini">
+                                <button class="secondary" data-copy="#mergeStepCmd" type="button">Copy</button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+
+        </section>
+    </main>
+
+  <script>
+    const els = {
+      pairHost: document.getElementById('pairHost'),
+      pairCode: document.getElementById('pairCode'),
+      ofPath: document.getElementById('ofPath'),
+      folderNumber: document.getElementById('folderNumber'),
+      nfaFile: document.getElementById('nfaFile'),
+      wavFile: document.getElementById('wavFile'),
+      movieFile: document.getElementById('movieFile'),
+      outputFile: document.getElementById('outputFile'),
+      localPath: document.getElementById('localPath'),
+      pairHostCmd: document.getElementById('pairHostCmd'),
+      pairCodeCmd: document.getElementById('pairCodeCmd'),
+      shellStepCmd: document.getElementById('shellStepCmd'),
+      cdStepCmd: document.getElementById('cdStepCmd'),
+      lsStepCmd: document.getElementById('lsStepCmd'),
+      pullStepCmd: document.getElementById('pullStepCmd'),
+      convertStepCmd: document.getElementById('convertStepCmd'),
+      mergeStepCmd: document.getElementById('mergeStepCmd'),
+      copyPairHostBtn: document.getElementById('copyPairHostBtn'),
+      copyPairCodeBtn: document.getElementById('copyPairCodeBtn'),
+      themeToggle: document.getElementById('themeToggle'),
+    };
+
+    function applyTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      els.themeToggle.textContent = theme === 'dark' ? 'Light' : 'Dark';
+      try {
+        localStorage.setItem('android-adb-theme', theme);
+      } catch {
+        // Ignore storage failures and keep the current theme active.
+      }
+    }
+
+    function quote(value) {
+      if (!value) return '""';
+      if (/[\s"'$`\\]/.test(value)) {
+        return `'${String(value).replaceAll("'", "'\\''")}'`;
+      }
+      return value;
+    }
+
+    function buildCommands() {
+      const pairHost = els.pairHost.value.trim();
+      const pairCode = els.pairCode.value.trim();
+      const ofPath = els.ofPath.value.trim();
+      const folderNumber = els.folderNumber.value.trim();
+      const nfaFile = els.nfaFile.value.trim();
+      const wavFile = els.wavFile.value.trim();
+      const movieFile = els.movieFile.value.trim();
+      const outputFile = els.outputFile.value.trim();
+      const localPath = els.localPath.value.trim();
+
+      const pairHostCmd = `adb pair ${pairHost}`;
+      const pairCodeCmd = pairCode;
+      const shellStepCmd = 'adb shell';
+      const cdStepCmd = `cd ${quote(ofPath)}`;
+      const lsStepCmd = 'ls -la';
+      const pullPath = `${ofPath.replace(/\/$/, '')}/${folderNumber}`;
+      const pullStepCmd = `adb pull ${quote(pullPath)} ${quote(localPath)}`;
+      const convertStepCmd = `afconvert -f 'WAVE' -d LEI16 ${quote(nfaFile)} ${quote(wavFile)}`;
+      const mergeStepCmd = `ffmpeg -i ${quote(movieFile)} -i audio.wav -map 0:v:0 -map 1:a:0 -c copy ${quote(outputFile)}`;
+
+      if (els.pairHostCmd) els.pairHostCmd.textContent = pairHostCmd;
+      if (els.pairCodeCmd) els.pairCodeCmd.textContent = pairCodeCmd;
+      if (els.shellStepCmd) els.shellStepCmd.textContent = shellStepCmd;
+      if (els.cdStepCmd) els.cdStepCmd.textContent = cdStepCmd;
+      if (els.lsStepCmd) els.lsStepCmd.textContent = lsStepCmd;
+      if (els.pullStepCmd) els.pullStepCmd.textContent = pullStepCmd;
+      if (els.convertStepCmd) els.convertStepCmd.textContent = convertStepCmd;
+      if (els.mergeStepCmd) els.mergeStepCmd.textContent = mergeStepCmd;
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const area = document.createElement('textarea');
+        area.value = text;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+      }
+    }
+
+    els.themeToggle.addEventListener('click', () => {
+      const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      applyTheme(nextTheme);
+    });
+    els.copyPairHostBtn.addEventListener('click', () => copyText(`adb pair ${els.pairHost.value.trim()}`));
+    els.copyPairCodeBtn.addEventListener('click', () => copyText(els.pairCode.value.trim()));
+
+    document.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-copy');
+        if (target && target.startsWith('#')) {
+          const node = document.querySelector(target);
+          if (node) copyText(node.textContent);
+          return;
+        }
+        if (target) copyText(target);
+      });
+    });
+
+    [
+      els.pairHost,
+      els.pairCode,
+      els.ofPath,
+      els.folderNumber,
+      els.nfaFile,
+      els.wavFile,
+      els.movieFile,
+      els.outputFile,
+      els.localPath,
+    ].forEach((input) => {
+      input.addEventListener('input', buildCommands);
+    });
+
+    applyTheme(localStorage.getItem('android-adb-theme') || 'light');
+    buildCommands();
+  </script>
+</body>
+</html>
