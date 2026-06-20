@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Netflix Offline Pull — ADB Transfer Pipeline</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f1ea;
+  --bg2: #ece7dc;
+  --panel: #fffdf9;
+  --panel2: #f7f3ea;
+  --field: #ffffff;
+  --line: rgba(40, 30, 15, 0.12);
+  --line-strong: rgba(40, 30, 15, 0.24);
+  --text: #211a10;
+  --muted: #6b6052;
+  --muted-dim: #948a78;
+  --ink: #b6651a;
+  --ink-soft: #d8b48a;
+  --done: #4a4232;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--sans);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0e14;
+  --bg2: #0d1320;
+  --panel: #10182a;
+  --panel2: #0c1220;
+  --field: #0a1120;
+  --line: rgba(148, 178, 222, 0.14);
+  --line-strong: rgba(148, 178, 222, 0.26);
+  --text: #e8edf7;
+  --muted: #8a99b8;
+  --muted-dim: #5d6c8c;
+  --ink: #ffb454;
+  --ink-soft: #8a6a3a;
+  --done: #cfd8ec;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+
+body {
+  background: linear-gradient(180deg, var(--bg), var(--bg2));
+  color: var(--text);
+  padding: 0 0 64px;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(900px 520px at 14% -8%, var(--ink-soft), transparent 60%);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 0; position: relative; z-index: 1; }
+
+/* ---------- header ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.brand .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--ink-soft);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel2);
+  padding: 4px;
+  gap: 2px;
+}
+
+.theme-toggle button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.theme-toggle button.active {
+  background: var(--ink);
+  color: var(--panel);
+  font-weight: 700;
+}
+
+.hero {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 30px;
+  max-width: 70ch;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.eyebrow::before { content: "›"; color: var(--ink); }
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 4.2vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+h1 span { color: var(--ink); }
+
+.lede {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15.5px;
+  line-height: 1.65;
+}
+
+/* ---------- overall progress ---------- */
+
+.progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 30px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel2);
+}
+
+.progress-bar .track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--field);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.progress-bar .fill {
+  height: 100%;
+  width: 0%;
+  background: var(--ink);
+  transition: width 0.35s ease;
+}
+
+.progress-bar .label {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.progress-bar .label b { color: var(--text); }
+
+/* ---------- phase layout ---------- */
+
+.phase {
+  margin-bottom: 36px;
+}
+
+.phase-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.phase-head h2 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.phase-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--panel);
+  background: var(--text);
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-weight: 700;
+}
+
+.phase-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+/* ---------- pipeline rail ---------- */
+
+.pipeline {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 0;
+}
+
+.rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rail .line {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  width: 2px;
+  background: var(--line-strong);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 0;
+}
+
+.rail .line.done {
+  background: var(--ink);
+}
+
+.node-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+}
+
+.node {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 2px solid var(--line-strong);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex: 0 0 auto;
+}
+
+.node:hover { border-color: var(--ink); color: var(--ink); }
+
+.node.done {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--panel);
+}
+
+.steps-col { display: grid; gap: 14px; padding-bottom: 6px; }
+
+.step-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 18px 20px;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.step-card.done {
+  border-color: var(--ink-soft);
+}
+
+.step-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.step-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.step-mark {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--muted-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.step-mark:hover { border-color: var(--ink); color: var(--ink); }
+
+.step-card.done .step-mark {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+  background: var(--panel2);
+}
+
+.step-desc {
+  margin: 6px 0 14px;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.fields {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.fields.cols-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.field { display: grid; gap: 6px; }
+
+.field label {
+  color: var(--muted-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+
+.field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.field-row input { flex: 1; min-width: 0; }
+
+input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--ink-soft);
+}
+
+.cmd {
+  border: 1px solid var(--line);
+  background: var(--field);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.cmd-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cmd .cmd-label {
+  color: var(--muted-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10.5px;
+  font-family: var(--mono);
+  margin-bottom: 7px;
+}
+
+.cmd code {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  font-family: var(--mono);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+button.copy {
+  border: 1px solid var(--line-strong);
+  background: var(--panel2);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 7px 13px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+button.copy:hover { border-color: var(--ink); color: var(--ink); }
+button.copy.copied { border-color: var(--ink); color: var(--ink); background: var(--ink-soft); }
+
+button.field-copy {
+  border: 1px solid var(--line-strong);
+  background: var(--panel2);
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  border-radius: 10px;
+  padding: 0 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+button.field-copy:hover { border-color: var(--ink); color: var(--ink); }
+
+.callout {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.callout b { color: var(--text); }
+
+/* ---------- footer ---------- */
+
+.footer {
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted-dim);
+  font-size: 12px;
+  line-height: 1.7;
+  font-family: var(--mono);
+}
+
+.reset-link {
+  background: none;
+  border: 0;
+  color: var(--muted-dim);
+  font: inherit;
+  font-family: var(--mono);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.reset-link:hover { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .fields.cols-2 { grid-template-columns: 1fr; }
+  .pipeline { grid-template-columns: 26px 1fr; }
+  .node { width: 26px; height: 26px; font-size: 11px; }
+  .step-card { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> adb / offline-transfer</div>
+    <div class="theme-toggle" role="group" aria-label="Theme">
+      <button type="button" data-theme-btn="dark">Terminal</button>
+      <button type="button" data-theme-btn="paper" class="active">Paper</button>
+    </div>
+  </div>
+
+  <section class="hero">
+    <span class="eyebrow">Wireless ADB · 6-stage pull</span>
+    <h1>Pull a Netflix download <span>off the device</span>, the whole way through.</h1>
+    <p class="lede">
+      Pair over Wi-Fi, find the right cache folder on the phone, pull it to your Mac,
+      then turn the encrypted pieces into one playable file. Fill in your values once —
+      every command below updates and stays ready to copy.
+    </p>
+  </section>
+
+  <div class="progress-bar">
+    <span class="label">Transfer progress</span>
+    <div class="track"><div class="fill" id="progressFill"></div></div>
+    <span class="label"><b id="progressCount">0</b> / 6 stages marked done</span>
+  </div>
+
+  <!-- PHASE 1: CONNECT -->
+  <div class="phase">
+    <div class="phase-head">
+      <h2><span class="phase-num">PHASE 1</span> Connect to the device</h2>
+    </div>
+    <p class="phase-sub">Turn on Wireless debugging in Developer options, then pair from the terminal.</p>
+
+    <div class="pipeline">
+      <div class="rail" id="rail-1">
+        <div class="line" id="line-1-2"></div>
+        <div class="node-wrap"><button class="node" data-step="1" type="button">1</button></div>
+      </div>
+      <div class="steps-col">
+        <section class="step-card" id="card-1" data-step="1">
+          <div class="step-head">
+            <h3 class="step-title">Pair host and code</h3>
+            <button class="step-mark" data-step="1" type="button">Mark done</button>
+          </div>
+          <p class="step-desc">On the phone: Settings → Developer options → Wireless debugging → Pair device with pairing code. Type the host:port and 6-digit code in here.</p>
+          <div class="fields cols-2">
+            <div class="field">
+              <label for="pairHost">Pair host:port</label>
+              <div class="field-row">
+                <input id="pairHost" value="192.168.0.169:39013"/>
+                <button class="field-copy" data-copy-input="#pairHost" type="button">Copy</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pairCode">Pairing code</label>
+              <div class="field-row">
+                <input id="pairCode" value="466269"/>
+                <button class="field-copy" data-copy-input="#pairCode" type="button">Copy</button>
+              </div>
+            </div>
+          </div>
+          <div class="cmd">
+            <div class="cmd-label">Run in terminal</div>
+            <div class="cmd-row">
+              <code id="pairHostCmd"></code>
+              <button class="copy" data-copy-target="#pairHostCmd" type="button">Copy</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 2: LOCATE -->
+  <div class="phase">
+    <div class="phase-head">
+      <h2><span class="phase-num">PHASE 2</span> Find the download folder</h2>
+    </div>
+    <p class="phase-sub">Open a shell on the device, then browse to the Netflix offline cache.</p>
+
+    <div class="pipeline">
+      <div class="rail" id="rail-2">
+        <div class="line" id="line-2-3"></div>
+        <div class="node-wrap"><button class="node" data-step="2" type="button">2</button></div>
+      </div>
+      <div class="steps-col">
+        <section class="step-card" id="card-2" data-step="2">
+          <div class="step-head">
+            <h3 class="step-title">Open ADB shell</h3>
+            <button class="step-mark" data-step="2" type="button">Mark done</button>
+          </div>
+          <p class="step-desc">Drops you into a shell on the phone itself — every command after this runs on-device.</p>
+          <div class="cmd">
+            <div class="cmd-label">Run in terminal</div>
+            <div class="cmd-row">
+              <code id="shellStepCmd">adb shell</code>
+              <button class="copy" data-copy-target="#shellStepCmd" type="button">Copy</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="pipeline">
+      <div class="rail" id="rail-3">
+        <div class="line" id="line-3-4"></div>
+        <div class="node-wrap"><button class="node" data-step="3" type="button">3</button></div>
+      </div>
+      <div class="steps-col">
+        <section class="step-card" id="card-3" data-step="3">
+          <div class="step-head">
+            <h3 class="step-title">cd into the cache, then list it</h3>
+            <button class="step-mark" data-step="3" type="button">Mark done</button>
+          </div>
+          <p class="step-desc">Each downloaded title gets its own numbered folder here. List the directory and note the folder number for the show you want.</p>
+          <div class="fields">
+            <div class="field">
+              <label for="ofPath">Offline cache path</label>
+              <input id="ofPath" value="/sdcard/android/data/com.netflix.mediaclient/files/download/.of/"/>
+            </div>
+          </div>
+          <div class="cmd" style="margin-bottom:10px;">
+            <div class="cmd-label">Run in terminal</div>
+            <div class="cmd-row">
+              <code id="cdStepCmd"></code>
+              <button class="copy" data-copy-target="#cdStepCmd" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="cmd">
+            <div class="cmd-label">Then list the folder</div>
+            <div class="cmd-row">
+              <code id="lsStepCmd">ls -la</code>
+              <button class="copy" data-copy-target="#lsStepCmd" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="fields" style="margin-top:14px;">
+            <div class="field">
+              <label for="folderNumber">Folder number from the listing</label>
+              <input id="folderNumber" value="81731620"/>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 3: TRANSFER -->
+  <div class="phase">
+    <div class="phase-head">
+      <h2><span class="phase-num">PHASE 3</span> Pull it to your Mac</h2>
+    </div>
+    <p class="phase-sub">Exit the shell first — adb pull runs from your computer's terminal, not the phone's.</p>
+
+    <div class="pipeline">
+      <div class="rail" id="rail-4">
+        <div class="line" id="line-4-5"></div>
+        <div class="node-wrap"><button class="node" data-step="4" type="button">4</button></div>
+      </div>
+      <div class="steps-col">
+        <section class="step-card" id="card-4" data-step="4">
+          <div class="step-head">
+            <h3 class="step-title">Copy the project to your computer</h3>
+            <button class="step-mark" data-step="4" type="button">Mark done</button>
+          </div>
+          <p class="step-desc">Pulls the whole numbered folder from Phase 2 into a local destination folder of your choice.</p>
+          <div class="fields">
+            <div class="field">
+              <label for="localPath">Local destination folder</label>
+              <input id="localPath" value="~/Desktop/your_project"/>
+            </div>
+          </div>
+          <div class="cmd">
+            <div class="cmd-label">Run in terminal</div>
+            <div class="cmd-row">
+              <code id="pullStepCmd"></code>
+              <button class="copy" data-copy-target="#pullStepCmd" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="callout">
+            <span>The pulled folder holds <b>.nfa</b> (audio) and <b>.nfv</b> (video) files — both encrypted by Netflix. The next phase only deals with the audio side.</span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 4: CONVERT & MUX -->
+  <div class="phase">
+    <div class="phase-head">
+      <h2><span class="phase-num">PHASE 4</span> Convert audio &amp; merge with video</h2>
+    </div>
+    <p class="phase-sub">Netflix's audio format (.nfa) isn't encrypted, just wrapped — convert it, then mux it onto a video file you already have.</p>
+
+    <div class="pipeline">
+      <div class="rail" id="rail-5">
+        <div class="line" id="line-5-6"></div>
+        <div class="node-wrap"><button class="node" data-step="5" type="button">5</button></div>
+      </div>
+      <div class="steps-col">
+        <section class="step-card" id="card-5" data-step="5">
+          <div class="step-head">
+            <h3 class="step-title">Convert .nfa to .wav</h3>
+            <button class="step-mark" data-step="5" type="button">Mark done</button>
+          </div>
+          <p class="step-desc">Run this on macOS, from inside the pulled project folder.</p>
+          <div class="fields cols-2">
+            <div class="field">
+              <label for="nfaFile">Audio file (.nfa)</label>
+              <input id="nfaFile" value="177321463.nfa"/>
+            </div>
+            <div class="field">
+              <label for="wavFile">WAV output name</label>
+              <input id="wavFile" value="language.wav"/>
+            </div>
+          </div>
+          <div class="cmd">
+            <div class="cmd-label">Run in terminal</div>
+            <div class="cmd-row">
+              <code id="convertStepCmd"></code>
+              <button class="copy" data-copy-target="#convertStepCmd" type="button">Copy</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="pipeline">
+      <div class="rail" id="rail-6">
+        <div class="line" id="line-6-end" style="display:none;"></div>
+        <div class="node-wrap"><button class="node" data-step="6" type="button">6</button></div>
+      </div>
+      <div class="steps-col">
+        <section class="step-card" id="card-6" data-step="6">
+          <div class="step-head">
+            <h3 class="step-title">Merge audio into the video</h3>
+            <button class="step-mark" data-step="6" type="button">Mark done</button>
+          </div>
+          <p class="step-desc">The .nfv video file stays encrypted, so this step assumes you already have the matching video as a playable .mp4 from elsewhere. ffmpeg copies both streams into one container without re-encoding.</p>
+          <div class="fields cols-2">
+            <div class="field">
+              <label for="movieFile">Video file (.mp4)</label>
+              <input id="movieFile" value="movie.mp4"/>
+            </div>
+            <div class="field">
+              <label for="outputFile">Final output</label>
+              <input id="outputFile" value="new_project.mkv"/>
+            </div>
+          </div>
+          <div class="cmd">
+            <div class="cmd-label">Run in terminal</div>
+            <div class="cmd-row">
+              <code id="mergeStepCmd"></code>
+              <button class="copy" data-copy-target="#mergeStepCmd" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="callout">
+            <span>Uses the <b>.wav</b> from Step 5 as <code>audio.wav</code> — rename or adjust the command if you kept a different filename.</span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span id="footerStatus">0 of 6 stages complete</span> ·
+    <button class="reset-link" id="resetBtn" type="button">reset progress</button>
+  </div>
+
+</main>
+
+<script>
+const STORAGE_PROGRESS = 'adb-offline-progress';
+const STORAGE_THEME = 'adb-offline-theme';
+const TOTAL_STEPS = 6;
+
+const els = {
+  pairHost: document.getElementById('pairHost'),
+  pairCode: document.getElementById('pairCode'),
+  ofPath: document.getElementById('ofPath'),
+  folderNumber: document.getElementById('folderNumber'),
+  nfaFile: document.getElementById('nfaFile'),
+  wavFile: document.getElementById('wavFile'),
+  movieFile: document.getElementById('movieFile'),
+  outputFile: document.getElementById('outputFile'),
+  localPath: document.getElementById('localPath'),
+  pairHostCmd: document.getElementById('pairHostCmd'),
+  cdStepCmd: document.getElementById('cdStepCmd'),
+  pullStepCmd: document.getElementById('pullStepCmd'),
+  convertStepCmd: document.getElementById('convertStepCmd'),
+  mergeStepCmd: document.getElementById('mergeStepCmd'),
+  progressFill: document.getElementById('progressFill'),
+  progressCount: document.getElementById('progressCount'),
+  footerStatus: document.getElementById('footerStatus'),
+  resetBtn: document.getElementById('resetBtn'),
+};
+
+function quote(value) {
+  if (!value) return '""';
+  if (/[\s"'$`\\]/.test(value)) {
+    return `'${String(value).replaceAll("'", "'\\''")}'`;
+  }
+  return value;
+}
+
+function buildCommands() {
+  const pairHost = els.pairHost.value.trim();
+  const ofPath = els.ofPath.value.trim();
+  const folderNumber = els.folderNumber.value.trim();
+  const nfaFile = els.nfaFile.value.trim();
+  const wavFile = els.wavFile.value.trim();
+  const movieFile = els.movieFile.value.trim();
+  const outputFile = els.outputFile.value.trim();
+  const localPath = els.localPath.value.trim();
+
+  const pullPath = `${ofPath.replace(/\/$/, '')}/${folderNumber}`;
+
+  els.pairHostCmd.textContent = `adb pair ${pairHost}`;
+  els.cdStepCmd.textContent = `cd ${quote(ofPath)}`;
+  els.pullStepCmd.textContent = `adb pull ${quote(pullPath)} ${quote(localPath)}`;
+  els.convertStepCmd.textContent = `afconvert -f 'WAVE' -d LEI16 ${quote(nfaFile)} ${quote(wavFile)}`;
+  els.mergeStepCmd.textContent = `ffmpeg -i ${quote(movieFile)} -i audio.wav -map 0:v:0 -map 1:a:0 -c copy ${quote(outputFile)}`;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function flashCopied(btn) {
+  const original = btn.textContent;
+  btn.textContent = 'Copied';
+  btn.classList.add('copied');
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.classList.remove('copied');
+  }, 1100);
+}
+
+document.querySelectorAll('[data-copy-target]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const node = document.querySelector(btn.getAttribute('data-copy-target'));
+    if (!node) return;
+    const ok = await copyText(node.textContent);
+    if (ok) flashCopied(btn);
+  });
+});
+
+document.querySelectorAll('[data-copy-input]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const input = document.querySelector(btn.getAttribute('data-copy-input'));
+    if (!input) return;
+    const ok = await copyText(input.value.trim());
+    if (ok) flashCopied(btn);
+  });
+});
+
+[
+  els.pairHost, els.pairCode, els.ofPath, els.folderNumber,
+  els.nfaFile, els.wavFile, els.movieFile, els.outputFile, els.localPath,
+].forEach((input) => input.addEventListener('input', buildCommands));
+
+/* ---------- progress tracking ---------- */
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(STORAGE_PROGRESS);
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function saveProgress(state) {
+  try {
+    localStorage.setItem(STORAGE_PROGRESS, JSON.stringify(state));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+let progress = loadProgress();
+
+function renderProgress() {
+  let doneCount = 0;
+  for (let i = 1; i <= TOTAL_STEPS; i++) {
+    const isDone = !!progress[i];
+    if (isDone) doneCount++;
+
+    document.querySelectorAll(`[data-step="${i}"]`).forEach((el) => {
+      if (el.classList.contains('node')) {
+        el.classList.toggle('done', isDone);
+        el.textContent = isDone ? '✓' : String(i);
+      }
+      if (el.classList.contains('step-card')) {
+        el.classList.toggle('done', isDone);
+      }
+      if (el.classList.contains('step-mark')) {
+        el.textContent = isDone ? 'Done' : 'Mark done';
+      }
+    });
+
+    const line = document.getElementById(`line-${i}-${i + 1}`);
+    if (line) line.classList.toggle('done', isDone);
+  }
+
+  const pct = Math.round((doneCount / TOTAL_STEPS) * 100);
+  els.progressFill.style.width = `${pct}%`;
+  els.progressCount.textContent = String(doneCount);
+  els.footerStatus.textContent = `${doneCount} of ${TOTAL_STEPS} stages complete`;
+}
+
+function toggleStep(stepNum) {
+  progress[stepNum] = !progress[stepNum];
+  saveProgress(progress);
+  renderProgress();
+}
+
+document.querySelectorAll('.node, .step-mark').forEach((el) => {
+  el.addEventListener('click', () => {
+    const step = Number(el.getAttribute('data-step'));
+    if (step) toggleStep(step);
+  });
+});
+
+els.resetBtn.addEventListener('click', () => {
+  progress = {};
+  saveProgress(progress);
+  renderProgress();
+});
+
+/* ---------- theme ---------- */
+
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.documentElement.dataset.theme = 'dark';
+  } else {
+    delete document.documentElement.dataset.theme;
+    theme = 'paper';
+  }
+  document.querySelectorAll('[data-theme-btn]').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme-btn') === theme);
+  });
+  try {
+    localStorage.setItem(STORAGE_THEME, theme);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+document.querySelectorAll('[data-theme-btn]').forEach((btn) => {
+  btn.addEventListener('click', () => applyTheme(btn.getAttribute('data-theme-btn')));
+});
+
+/* ---------- init ---------- */
+
+applyTheme(localStorage.getItem(STORAGE_THEME) || 'paper');
+buildCommands();
+renderProgress();
+</script>
+</body>
+</html>
