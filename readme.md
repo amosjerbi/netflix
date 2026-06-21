@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="cover.png" alt="Cover" width="600">
+  <img src="cover.png" alt="Cover" width="250">
 </p>
 
  ‏אחת מנקודות הכאב של Netflix היא שתכנים יורדים מהקטלוג ואז אין גישה אליהם יותר.
