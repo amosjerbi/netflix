@@ -1,8 +1,5 @@
 <p align="center">
   <img src="cover.png" alt="Cover" width="250">
-</p>
-
-<p align="center">
   <img src="netflix_offline.png" alt="Cover" width="650">
 </p>
 
