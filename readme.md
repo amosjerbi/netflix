@@ -1,6 +1,7 @@
 <p align="center">
   <img src="cover.png" alt="Cover" width="250">
 </p>
+
 # Netflix Offline Toolkit (Electron)
 
 A native macOS app version of `netflix_offline.sh` — pulls Netflix offline
