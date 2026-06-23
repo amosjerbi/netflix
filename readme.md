@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="netflix_offline.png.png" alt="Cover" width="350">
+  <img src="netflix_offline.png" alt="Cover" width="350">
 </p>
 
 
